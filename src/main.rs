@@ -25,7 +25,6 @@ async fn main() {
         .credentials(RPCUSER, RPCPASSWORD);
     let db = db::init().await.unwrap();
     
-    //let blockdata: BlockData = getblock(799907, &authtoken).await;
     let nextheight = match db::toprec(&db).await {
         Some(thing) => thing + 1,
         None => 0,

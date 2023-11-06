@@ -1,6 +1,4 @@
-use serde::{Deserialize, Serialize};
 use surrealdb::engine::local::{Db, RocksDb};
-use surrealdb::sql::Thing;
 use surrealdb::Surreal;
 
 use crate::console::{BlockData, Proposal};
@@ -32,14 +30,14 @@ pub async fn toprec(db: &Surreal<Db>) -> Option<u64> {
                 .unwrap()
                 .take(0)
                 .unwrap();
-            /*if fold != dbfold.unwrap() {
+            if fold != dbfold.unwrap() {
                 error!(
                     "Database is insane! Rust fold: {}, SurrealDB fold: {}",
                     fold,
                     dbfold.unwrap()
                 );
                 std::process::exit(1);
-            }*/
+            }
         }
         _ => {}
     }
@@ -62,7 +60,7 @@ pub async fn regblock(db: &Surreal<Db>, blockdata: &BlockData) {
         "Registering block {} into DB '{}' ...",
         blockdata.height, STAGE
     );
-    let x: Vec<BlockData> = db.create("blocks").content(blockdata).await.unwrap();
+    let _x: Vec<BlockData> = db.create("blocks").content(blockdata).await.unwrap();
 }
 
 pub async fn regproposal(db: &Surreal<Db>, proposal: &Proposal) {
@@ -70,5 +68,5 @@ pub async fn regproposal(db: &Surreal<Db>, proposal: &Proposal) {
         "Registering proposal ID {} into DB '{}' ...",
         proposal.proposal_id, STAGE
     );
-    let x: Vec<Proposal> = db.create("proposals").content(proposal).await.unwrap();
+    let _x: Vec<Proposal> = db.create("proposals").content(proposal).await.unwrap();
 }

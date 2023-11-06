@@ -1,7 +1,6 @@
 // Collection of functions to interface with ghostd.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{default, error::Error};
 
 #[derive(Debug, Clone, Default)]
 pub struct AuthToken {

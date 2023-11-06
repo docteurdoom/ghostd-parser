@@ -44,10 +44,10 @@ impl BlockData {
     async fn validateaddress(&mut self, auth: &AuthToken) {
         let hasstakeaddress: Option<Vec<String>> = match self.tx[0].vout[1].clone() {
             Vout::Standard {
-                n,
-                vout_type,
-                value,
-                valuesat,
+                n: _,
+                vout_type: _,
+                value: _,
+                valuesat: _,
                 scriptpubkey,
             } => scriptpubkey.stakeaddresses,
             _ => {
@@ -77,12 +77,12 @@ impl BlockData {
         let vout = self.tx[0].vout[0].clone();
         match vout {
             Data {
-                n,
-                data_hex,
-                smsgdifficulty,
-                smsgfeerate,
-                treasury_fund_cfwd,
-                vout_type,
+                n: _,
+                data_hex: _,
+                smsgdifficulty: _,
+                smsgfeerate: _,
+                treasury_fund_cfwd: _,
+                vout_type: _,
                 vote,
             } => match vote {
                 Some(content) => {

@@ -1,11 +1,12 @@
 use crate::{
+    console::Vout::Data,
     pools::{Pool, POOLS},
     rpc::{call, AuthToken},
-    Vout::Data,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::error::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockData {
@@ -20,7 +21,6 @@ pub struct BlockData {
     pub merkleroot: String,
     #[serde(rename(deserialize = "nTx", serialize = "nTx"))]
     pub n_tx: u64,
-    pub nextblockhash: String,
     pub nonce: u64,
     pub previousblockhash: Option<String>,
     pub prevstakemodifier: Option<String>,
@@ -41,7 +41,7 @@ pub struct BlockData {
 }
 
 impl BlockData {
-    async fn validateaddress(&mut self, auth: &AuthToken) {
+    async fn validateaddress(&mut self, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
         let hasstakeaddress: Option<Vec<String>> = match self.tx[0].vout[1].clone() {
             Vout::Standard {
                 n: _,
@@ -58,7 +58,7 @@ impl BlockData {
         match hasstakeaddress {
             Some(stakeaddress) => {
                 let arg = format!("validateaddress {} true", &stakeaddress[0]);
-                let value = call(&arg, auth).await;
+                let value = call(&arg, auth).await?;
                 let mut pool: Option<Pool> = None;
                 for known_pool in POOLS {
                     if &value["stakeonly_address"] == known_pool.pubkey {
@@ -67,9 +67,11 @@ impl BlockData {
                     }
                 }
                 self.pool_info = pool;
+                Ok(())
             }
             None => {
                 self.pool_info = None;
+                Ok(())
             }
         }
     }
@@ -219,14 +221,17 @@ pub struct Vote {
 }
 
 impl Vote {
-    pub async fn gen_proposal(&self, auth: &AuthToken) -> Proposal {
-        return Proposal {
+    pub async fn gen_proposal(&self, auth: &AuthToken) -> Result<Proposal, Box<dyn Error>> {
+        Ok(Proposal {
             proposal_id: self.proposal_id,
-            stats: self.count_stats(auth).await,
-        };
+            stats: self.count_stats(auth).await?,
+        })
     }
-    async fn count_stats(&self, auth: &AuthToken) -> HashMap<String, (u64, f64)> {
-        return tallyvotes(*&self.proposal_id, auth).await;
+    async fn count_stats(
+        &self,
+        auth: &AuthToken,
+    ) -> Result<HashMap<String, (u64, f64)>, Box<dyn Error>> {
+        Ok(tallyvotes(*&self.proposal_id, auth).await?)
     }
 }
 
@@ -236,10 +241,13 @@ pub struct Proposal {
     pub stats: HashMap<String, (u64, f64)>,
 }
 
-async fn tallyvotes(proposal_id: u64, auth: &AuthToken) -> HashMap<String, (u64, f64)> {
+async fn tallyvotes(
+    proposal_id: u64,
+    auth: &AuthToken,
+) -> Result<HashMap<String, (u64, f64)>, Box<dyn Error>> {
     let arg = format!("tallyvotes {} 710800 {}", proposal_id, i32::MAX);
-    let context = call(&arg, auth).await;
-    let rawmap: HashMap<String, Value> = serde_json::from_value(context).unwrap();
+    let context = call(&arg, auth).await?;
+    let rawmap: HashMap<String, Value> = serde_json::from_value(context)?;
     let mut hmap: HashMap<String, (u64, f64)> = rawmap
         .iter()
         .map(|val| {
@@ -253,7 +261,7 @@ async fn tallyvotes(proposal_id: u64, auth: &AuthToken) -> HashMap<String, (u64,
     hmap.remove_entry("blocks_counted").unwrap();
     hmap.remove_entry("height_start").unwrap();
     hmap.remove_entry("height_end").unwrap();
-    return hmap;
+    Ok(hmap)
 }
 
 fn parse_tallyvotes_ratios(raw: String) -> (u64, f64) {
@@ -271,48 +279,54 @@ fn parse_tallyvotes_ratios(raw: String) -> (u64, f64) {
     return vote_args_tuple;
 }
 
-pub async fn getblockchaininfo(auth: &AuthToken) -> Value {
-    return call("getblockchaininfo", auth).await;
+pub async fn getblockchaininfo(auth: &AuthToken) -> Result<Value, Box<dyn Error>> {
+    Ok(call("getblockchaininfo", auth).await?)
 }
 
-pub async fn getblockcount(auth: &AuthToken) -> u64 {
-    let raw = call("getblockcount", auth).await;
-    let height: u64 = serde_json::from_value(raw).unwrap();
-    return height;
+pub async fn getblockcount(auth: &AuthToken) -> Result<u64, Box<dyn Error>> {
+    let raw = call("getblockcount", auth).await?;
+    let height: u64 = serde_json::from_value(raw)?;
+    Ok(height)
 }
 
-pub async fn getblockhash(height: u64, auth: &AuthToken) -> String {
+pub async fn getblockhash(height: u64, auth: &AuthToken) -> Result<String, Box<dyn Error>> {
     let arg = format!("getblockhash {}", height);
-    let raw = call(&arg, auth).await;
-    let hash: String = serde_json::from_value(raw).unwrap();
-    return hash;
+    let raw = call(&arg, auth).await?;
+    let hash: String = serde_json::from_value(raw)?;
+    Ok(hash)
 }
 
-pub async fn getblock(height: u64, auth: &AuthToken) -> BlockData {
-    let blockhash = getblockhash(height, auth).await;
-    let arg = format!("getblock {} 2 true", blockhash);
-    let value = call(&arg, auth).await;
-    let mut blockdata: BlockData = serde_json::from_value(value).unwrap();
+pub async fn getblock(
+    blockhash: impl Into<String>,
+    auth: &AuthToken,
+) -> Result<BlockData, Box<dyn Error>> {
+    let arg = format!("getblock {} 2 true", blockhash.into());
+    let value = call(&arg, auth).await?;
+    let mut blockdata: BlockData = serde_json::from_value(value)?;
     blockdata.validateaddress(auth).await;
     blockdata.read_vote();
-    return blockdata;
+    Ok(blockdata)
 }
 
-pub async fn getnewproposal(blockdata: &BlockData, proposal_ids: &Vec<u64>, auth: &AuthToken) -> Option<Proposal> {
+pub async fn getnewproposal(
+    blockdata: &BlockData,
+    proposal_ids: &Vec<u64>,
+    auth: &AuthToken,
+) -> Result<Option<Proposal>, Box<dyn Error>> {
     if blockdata.height > 710800 {
         match blockdata.voting_info.clone() {
             Some(vote) => {
-                let existsyet = proposal_ids
-                        .iter()
-                        .any(|&x| x == vote.proposal_id);
-                    if ! existsyet {
-                        let proposal = vote.gen_proposal(auth).await;
-                        Some(proposal)
-                    }
-                    else { None }
+                let existsyet = proposal_ids.iter().any(|&x| x == vote.proposal_id);
+                if !existsyet {
+                    let proposal = vote.gen_proposal(auth).await?;
+                    Ok(Some(proposal))
+                } else {
+                    Ok(None)
                 }
-            _ => { None }
+            }
+            _ => Ok(None),
         }
+    } else {
+        Ok(None)
     }
-    else { None }
 }

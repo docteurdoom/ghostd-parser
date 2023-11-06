@@ -1,12 +1,13 @@
 // Collection of functions to interface with ghostd.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::error::Error;
 
 #[derive(Debug, Clone, Default)]
 pub struct AuthToken {
     user: String,
     password: String,
-    hyperlink: String,
+    url: String,
 }
 
 impl AuthToken {
@@ -14,15 +15,15 @@ impl AuthToken {
         Self {
             user: String::new(),
             password: String::new(),
-            hyperlink: String::new(),
+            url: String::new(),
         }
     }
     pub fn target(mut self, ip: &str, port: u32, walletname: &str) -> Self {
-        debug!("Generating authtoken ...");
+        debug!("Generating auth ...");
         if walletname.len() == 0 {
-            self.hyperlink = format!("http://{}:{}/", ip, port);
+            self.url = format!("http://{}:{}/", ip, port);
         } else {
-            self.hyperlink = format!("http://{}:{}/wallet/{}", ip, port, walletname);
+            self.url = format!("http://{}:{}/wallet/{}", ip, port, walletname);
         }
         return self;
     }
@@ -77,7 +78,7 @@ struct Post<'r> {
     params: Value,
 }
 
-pub(crate) async fn call(args: &str, authtoken: &AuthToken) -> Value {
+pub(crate) async fn call(args: &str, auth: &AuthToken) -> Result<Value, Box<dyn Error>> {
     let mut params = parametrize(args);
     let method = params[0].clone();
     params.remove(0);
@@ -90,16 +91,16 @@ pub(crate) async fn call(args: &str, authtoken: &AuthToken) -> Value {
     };
     debug!("RPC: {} {} ...", &post.method, &post.params);
     let response = reqwest::Client::new()
-        .post(authtoken.hyperlink.clone())
-        .basic_auth(authtoken.user.clone(), Some(authtoken.password.clone()))
+        .post(auth.url.clone())
+        .basic_auth(auth.user.clone(), Some(auth.password.clone()))
         .json(&post)
         .send()
         .await;
     match response {
         Ok(context) => {
-            let rpcresponse: RPCResponse = context.json().await.unwrap();
+            let rpcresponse: RPCResponse = context.json().await?;
             let json = rpcresponse.unpack();
-            return json;
+            return Ok(json);
         }
         Err(err) => {
             error!("{}", err);

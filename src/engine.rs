@@ -53,7 +53,7 @@ async fn catchup(db: &Surreal<Db>, auth: &AuthToken) -> Result<(), Box<dyn Error
                 scan(&blockhash, &mut proposal_ids, &db, &auth).await?;
             }
             Err(_) => {
-                trace!("Caught up the blocks. Switching to listen mode ...");
+                info!("Caught up the blocks. Switching to listen mode ...");
                 break;
             }
         }

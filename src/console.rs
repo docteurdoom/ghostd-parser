@@ -35,7 +35,7 @@ pub struct BlockData {
     pub version_hex: String,
     pub weight: u64,
     pub witnessmerkleroot: String,
-    pub pool_info: Option<Pool>,
+    pub coldstaking: Option<Pool>,
     pub voting_info: Option<Vote>,
 }
 
@@ -58,18 +58,25 @@ impl BlockData {
             Some(stakeaddress) => {
                 let arg = format!("validateaddress {} true", &stakeaddress[0]);
                 let value = call(&arg, auth).await?;
-                let mut pool: Option<Pool> = None;
+                let poolkey: String = serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
                 for known_pool in POOLS {
-                    if &value["stakeonly_address"] == known_pool.pubkey {
-                        pool = Some(known_pool.makepub());
+                    if &poolkey == known_pool.pubkey {
+                        self.coldstaking = Some(known_pool.getpool());
+                        break;
+                    }
+                    else {
+                        self.coldstaking = Some(Pool {
+                            pubkey: poolkey,
+                            url: None,
+                            pool_is_active: None
+                        });
                         break;
                     }
                 }
-                self.pool_info = pool;
                 Ok(())
             }
             None => {
-                self.pool_info = None;
+                self.coldstaking = None;
                 Ok(())
             }
         }

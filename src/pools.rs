@@ -9,11 +9,11 @@ pub struct PrivatePool {
 }
 
 impl PrivatePool {
-    pub fn makepub(self) -> Pool {
+    pub fn getpool(self) -> Pool {
         Pool {
             pubkey: self.pubkey.to_string(),
-            url: self.url.to_string(),
-            pool_is_active: self.is_active,
+            url: Some(self.url.to_string()),
+            pool_is_active: Some(self.is_active),
         }
     }
 }
@@ -21,8 +21,8 @@ impl PrivatePool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pool {
     pub pubkey: String,
-    pub url: String,
-    pub pool_is_active: bool,
+    pub url: Option<String>,
+    pub pool_is_active: Option<bool>,
 }
 
 const MYGHOST: PrivatePool = PrivatePool {

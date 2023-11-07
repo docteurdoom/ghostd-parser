@@ -5,8 +5,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockData {
@@ -279,16 +278,6 @@ fn parse_tallyvotes_ratios(raw: String) -> (u64, f64) {
     return vote_args_tuple;
 }
 
-pub async fn getblockchaininfo(auth: &AuthToken) -> Result<Value, Box<dyn Error>> {
-    Ok(call("getblockchaininfo", auth).await?)
-}
-
-pub async fn getblockcount(auth: &AuthToken) -> Result<u64, Box<dyn Error>> {
-    let raw = call("getblockcount", auth).await?;
-    let height: u64 = serde_json::from_value(raw)?;
-    Ok(height)
-}
-
 pub async fn getblockhash(height: u64, auth: &AuthToken) -> Result<String, Box<dyn Error>> {
     let arg = format!("getblockhash {}", height);
     let raw = call(&arg, auth).await?;
@@ -303,7 +292,7 @@ pub async fn getblock(
     let arg = format!("getblock {} 2 true", blockhash.into());
     let value = call(&arg, auth).await?;
     let mut blockdata: BlockData = serde_json::from_value(value)?;
-    blockdata.validateaddress(auth).await;
+    blockdata.validateaddress(auth).await?;
     blockdata.read_vote();
     Ok(blockdata)
 }

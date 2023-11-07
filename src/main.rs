@@ -14,7 +14,7 @@ pub const RPCIP: &str = "127.0.0.1";
 pub const RPCPORT: u32 = 51725;
 pub const RPCUSER: &str = "user";
 pub const RPCPASSWORD: &str = "password";
-pub const DATABASE: &str = "/home/user/.local/share/ghost-parser/ghost-parser-test.db";
+pub const DATABASE: &str = "/home/user/.local/share/ghost-parser/ghost-parser-prod.db";
 pub const STAGE: &str = "prod";
 
 #[tokio::main]

@@ -1,20 +1,29 @@
-use crate::{
-    console::*,
-    db,
-    rpc::AuthToken,
-    {RPCIP, RPCPASSWORD, RPCPORT, RPCUSER},
-};
+use crate::{console::*, db, rpc::AuthToken};
 use bitcoincore_zmq::{subscribe_single_async, Message, Message::HashBlock};
+use clap::ArgMatches;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use surrealdb::{engine::local::Db, Surreal};
+use surrealdb::engine::remote::ws::Client;
+use surrealdb::Surreal;
 
-pub async fn run() {
+pub async fn run(args: &ArgMatches) {
+    let ipsplit: Vec<&str> = args
+        .get_one::<String>("Ghostd IP")
+        .unwrap()
+        .split(":")
+        .collect::<Vec<&str>>();
+    if ipsplit.len() != 2 {
+        error!("Ghostd IP parsing error.");
+        std::process::exit(1);
+    }
     let auth = AuthToken::new()
-        .target(RPCIP, RPCPORT, "")
-        .credentials(RPCUSER, RPCPASSWORD);
-    let db = db::init().await.unwrap();
+        .target(ipsplit[0], ipsplit[1].parse::<u16>().unwrap(), "")
+        .credentials(
+            args.get_one::<String>("user").unwrap(),
+            args.get_one::<String>("password").unwrap(),
+        );
+    let db = db::init(args).await.unwrap();
     if let Err(e) = catchup(&db, &auth).await {
         error!("{}", e);
         std::process::exit(1);
@@ -28,7 +37,7 @@ pub async fn run() {
 async fn scan(
     blockhash: &String,
     proposal_ids: &mut Vec<u64>,
-    db: &Surreal<Db>,
+    db: &Surreal<Client>,
     auth: &AuthToken,
 ) -> Result<(), Box<dyn Error>> {
     let blockdata: BlockData = getblock(blockhash, &auth).await?;
@@ -40,7 +49,7 @@ async fn scan(
     Ok(())
 }
 
-async fn catchup(db: &Surreal<Db>, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
+async fn catchup(db: &Surreal<Client>, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
     let nextheight = match db::toprec(&db).await? {
         Some(thing) => thing + 1,
         None => 0,
@@ -79,7 +88,7 @@ impl ProcessedBlocks {
     }
 }
 
-async fn listen(db: &Surreal<Db>, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
+async fn listen(db: &Surreal<Client>, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
     let mut proposal_ids = db::getproposalids(&db).await?;
     let mut processed_blocks = ProcessedBlocks::default();
     if let Some(blocks) = db::gettrackedzmq(&db).await? {

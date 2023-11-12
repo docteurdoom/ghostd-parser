@@ -18,7 +18,7 @@ impl AuthToken {
             url: String::new(),
         }
     }
-    pub fn target(mut self, ip: &str, port: u32, walletname: &str) -> Self {
+    pub fn target(mut self, ip: &str, port: u16, walletname: &str) -> Self {
         debug!("Generating auth ...");
         if walletname.len() == 0 {
             self.url = format!("http://{}:{}/", ip, port);

@@ -58,17 +58,17 @@ impl BlockData {
             Some(stakeaddress) => {
                 let arg = format!("validateaddress {} true", &stakeaddress[0]);
                 let value = call(&arg, auth).await?;
-                let poolkey: String = serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
+                let poolkey: String =
+                    serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
                 for known_pool in POOLS {
                     if &poolkey == known_pool.pubkey {
                         self.coldstaking = Some(known_pool.getpool());
                         break;
-                    }
-                    else {
+                    } else {
                         self.coldstaking = Some(Pool {
                             pubkey: poolkey,
                             url: None,
-                            pool_is_active: None
+                            pool_is_active: None,
                         });
                         break;
                     }

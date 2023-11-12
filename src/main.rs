@@ -1,8 +1,8 @@
-#![allow(unused)]
+//#![allow(unused)]
 #[macro_use]
 extern crate log;
 pub const CRATE_NAME: &str = module_path!();
-pub use std::error::Error;
+mod args;
 mod console;
 mod db;
 mod engine;
@@ -10,15 +10,12 @@ mod logger;
 mod pools;
 mod rpc;
 
-pub const RPCIP: &str = "127.0.0.1";
-pub const RPCPORT: u32 = 51725;
-pub const RPCUSER: &str = "user";
-pub const RPCPASSWORD: &str = "password";
-pub const DATABASE: &str = "/home/user/.local/share/ghost-parser/ghost-parser-prod.db";
+pub const DATABASE: &str = "127.0.0.1:8000";
 pub const STAGE: &str = "prod";
 
 #[tokio::main]
 async fn main() {
+    let args = args::args();
     logger::init();
-    engine::run().await;
+    engine::run(&args).await;
 }

@@ -1,24 +1,32 @@
 use crate::{
     console::{BlockData, Proposal},
     engine::ProcessedBlocks,
-    {DATABASE, STAGE},
 };
+use clap::ArgMatches;
 use std::error::Error;
+use surrealdb::engine::remote::ws::Client;
 use surrealdb::{
-    engine::local::{Db, RocksDb},
+    engine::remote::ws::Ws,
     Surreal,
 };
 
-pub async fn init() -> surrealdb::Result<Surreal<Db>> {
-    info!("Connecting {} ...", DATABASE);
-    let db = Surreal::new::<RocksDb>(DATABASE).await?;
-    db.use_ns(STAGE).use_db(STAGE).await?;
-    Ok(db)
+pub async fn init(args: &ArgMatches) -> surrealdb::Result<Surreal<Client>> {
+    let stage = args.get_one::<String>("stage").unwrap();
+    let is_ip: Option<String> = args.get_one::<String>("SurrealDB IP").cloned();
+    if let Some(ip) = is_ip {
+        info!("Connecting {} ...", &ip);
+        let db = Surreal::new::<Ws>(ip).await?;
+        db.use_ns(stage).use_db(stage).await?;
+        return Ok(db);
+    } else {
+        error!("Neither IP nor path to DB were found.");
+        std::process::exit(1);
+    }
 }
 
 // Sum heights from bottom to top both
 // mathematically and via SQL to ensure data consistency
-pub async fn toprec(db: &Surreal<Db>) -> Result<Option<u64>, Box<dyn Error>> {
+pub async fn toprec(db: &Surreal<Client>) -> Result<Option<u64>, Box<dyn Error>> {
     debug!("Database sanity check ...");
     trace!("Running a set of queries ...");
     let mut response = db
@@ -41,8 +49,7 @@ pub async fn toprec(db: &Surreal<Db>) -> Result<Option<u64>, Box<dyn Error>> {
             if fold != dbfold {
                 error!(
                     "Database is insane! Rust fold: {}, SurrealDB fold: {}",
-                    fold,
-                    dbfold
+                    fold, dbfold
                 );
                 std::process::exit(1);
             }
@@ -55,14 +62,16 @@ pub async fn toprec(db: &Surreal<Db>) -> Result<Option<u64>, Box<dyn Error>> {
     }
 }
 
-pub async fn getproposalids(db: &Surreal<Db>) -> Result<Vec<u64>, Box<dyn Error>> {
+pub async fn getproposalids(db: &Surreal<Client>) -> Result<Vec<u64>, Box<dyn Error>> {
     trace!("Querying proposals ...");
     let mut response = db.query("SELECT VALUE proposal_id FROM proposals").await?;
     let proposal_ids: Vec<u64> = response.take(0)?;
     Ok(proposal_ids)
 }
 
-pub async fn gettrackedzmq(db: &Surreal<Db>) -> Result<Option<ProcessedBlocks>, Box<dyn Error>> {
+pub async fn gettrackedzmq(
+    db: &Surreal<Client>,
+) -> Result<Option<ProcessedBlocks>, Box<dyn Error>> {
     trace!("Querying last 1000 ZMQ processed blocks ...");
     let mut response = db.query("SELECT * FROM zmq").await?;
     let zmqueue: Option<ProcessedBlocks> = response.take(0)?;
@@ -70,7 +79,7 @@ pub async fn gettrackedzmq(db: &Surreal<Db>) -> Result<Option<ProcessedBlocks>, 
 }
 
 pub async fn regtrackedzmq(
-    db: &Surreal<Db>,
+    db: &Surreal<Client>,
     queue: &ProcessedBlocks,
 ) -> Result<(), Box<dyn Error>> {
     trace!("Recording ZMQ queue for later use ...");
@@ -79,19 +88,19 @@ pub async fn regtrackedzmq(
     Ok(())
 }
 
-pub async fn regblock(db: &Surreal<Db>, blockdata: &BlockData) -> Result<(), Box<dyn Error>> {
+pub async fn regblock(db: &Surreal<Client>, blockdata: &BlockData) -> Result<(), Box<dyn Error>> {
     info!(
-        "Registering block {} into DB '{}' ...",
-        blockdata.height, STAGE
+        "Registering block {} into DB ...",
+        blockdata.height
     );
     let _: Vec<BlockData> = db.create("blocks").content(blockdata).await?;
     Ok(())
 }
 
-pub async fn regproposal(db: &Surreal<Db>, proposal: &Proposal) -> Result<(), Box<dyn Error>> {
+pub async fn regproposal(db: &Surreal<Client>, proposal: &Proposal) -> Result<(), Box<dyn Error>> {
     info!(
-        "Registering proposal ID {} into DB '{}' ...",
-        proposal.proposal_id, STAGE
+        "Registering proposal ID {} into DB ...",
+        proposal.proposal_id
     );
     let _: Vec<Proposal> = db.create("proposals").content(proposal).await?;
     Ok(())

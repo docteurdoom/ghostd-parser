@@ -1,4 +1,8 @@
-use clap::{command, Arg, ArgMatches};
+use clap::{
+    command,
+    Arg,
+    ArgMatches
+};
 
 pub fn args() -> ArgMatches {
     let args = command!()

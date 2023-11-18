@@ -13,7 +13,7 @@
 	DB="/your/path/to/store/the/database"
 	surreal start --log trace --user root --pass root file:${DB}
 
-### Install Git and Rust Toolchain, clone and compile the parser:
+### Install Git and Rust toolchain, clone and compile the parser:
 	
 	git clone https://github.com/docteurdoom/ghostd-parser.git
 	cd ghostd-parser
@@ -34,6 +34,7 @@
 
 ### Run SurrealQL on the database:
 
+	surreal start --log trace --user root --pass root file:/path/to/store/the/new/database
 	surreal sql --conn http://localhost:8000 --user root --password root
 	use ns example db example
 	select * from blocks where coldstaking != none

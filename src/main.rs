@@ -1,4 +1,4 @@
-//#![allow(unused)]
+#![allow(unused)]
 #[macro_use]
 extern crate log;
 pub const CRATE_NAME: &str = module_path!();
@@ -9,9 +9,6 @@ mod engine;
 mod logger;
 mod pools;
 mod rpc;
-
-pub const DATABASE: &str = "127.0.0.1:8000";
-pub const STAGE: &str = "prod";
 
 #[tokio::main]
 async fn main() {

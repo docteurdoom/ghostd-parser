@@ -1,26 +1,34 @@
 use crate::{
-    console::{BlockData, Proposal},
+    console::{
+        BlockData,
+        Proposal
+    },
     engine::ProcessedBlocks,
 };
 use clap::ArgMatches;
 use std::error::Error;
-use surrealdb::engine::remote::ws::Client;
 use surrealdb::{
-    engine::remote::ws::Ws,
-    Surreal,
+    engine::remote::ws::{
+        Ws,
+        Client
+    },
+    Surreal
 };
 
 pub async fn init(args: &ArgMatches) -> surrealdb::Result<Surreal<Client>> {
     let stage = args.get_one::<String>("stage").unwrap();
     let is_ip: Option<String> = args.get_one::<String>("SurrealDB IP").cloned();
-    if let Some(ip) = is_ip {
-        info!("Connecting {} ...", &ip);
-        let db = Surreal::new::<Ws>(ip).await?;
-        db.use_ns(stage).use_db(stage).await?;
-        return Ok(db);
-    } else {
-        error!("Neither IP nor path to DB were found.");
-        std::process::exit(1);
+    match is_ip {
+        Some(ip) => {
+            info!("Connecting {} ...", &ip);
+            let db = Surreal::new::<Ws>(ip).await?;
+            db.use_ns(stage).use_db(stage).await?;
+            return Ok(db);
+        }
+        None => {
+            // Can't be None, because CLAP won't let the program run without this value.
+            unreachable!();
+        }
     }
 }
 
@@ -89,11 +97,8 @@ pub async fn regtrackedzmq(
 }
 
 pub async fn regblock(db: &Surreal<Client>, blockdata: &BlockData) -> Result<(), Box<dyn Error>> {
-    info!(
-        "Registering block {} into DB ...",
-        blockdata.height
-    );
-    let _: Vec<BlockData> = db.create("blocks").content(blockdata).await?;
+    info!("Registering block {} into DB ...", blockdata.height);
+    let _: Option<BlockData> = db.create(("blocks", blockdata.height)).content(blockdata).await?;
     Ok(())
 }
 

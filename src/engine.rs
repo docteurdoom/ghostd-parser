@@ -1,11 +1,18 @@
-use crate::{console::*, db, rpc::AuthToken};
-use bitcoincore_zmq::{subscribe_single_async, Message, Message::HashBlock};
+use crate::{
+    console::*,
+    db,
+    rpc::AuthToken
+};
+use bitcoincore_zmq::{
+    subscribe_single_async,
+    Message,
+    Message::HashBlock
+};
 use clap::ArgMatches;
 use futures_util::StreamExt;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize,Serialize};
 use std::error::Error;
-use surrealdb::engine::remote::ws::Client;
-use surrealdb::Surreal;
+use surrealdb::{engine::remote::ws::Client, Surreal};
 
 pub async fn run(args: &ArgMatches) {
     let ipsplit: Vec<&str> = args

@@ -107,6 +107,6 @@ pub async fn regproposal(db: &Surreal<Client>, proposal: &Proposal) -> Result<()
         "Registering proposal ID {} into DB ...",
         proposal.proposal_id
     );
-    let _: Vec<Proposal> = db.create("proposals").content(proposal).await?;
+    let _: Option<Proposal> = db.create(("proposals", proposal.proposal_id)).content(proposal).await?;
     Ok(())
 }

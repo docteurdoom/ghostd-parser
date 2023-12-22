@@ -1,18 +1,12 @@
 use crate::{
-    console::{
-        BlockData,
-        Proposal
-    },
+    console::{BlockData, Proposal},
     engine::ProcessedBlocks,
 };
 use clap::ArgMatches;
 use std::error::Error;
 use surrealdb::{
-    engine::remote::ws::{
-        Ws,
-        Client
-    },
-    Surreal
+    engine::remote::ws::{Client, Ws},
+    Surreal,
 };
 
 pub async fn init(args: &ArgMatches) -> surrealdb::Result<Surreal<Client>> {
@@ -98,7 +92,10 @@ pub async fn regtrackedzmq(
 
 pub async fn regblock(db: &Surreal<Client>, blockdata: &BlockData) -> Result<(), Box<dyn Error>> {
     info!("Registering block {} into DB ...", blockdata.height);
-    let _: Option<BlockData> = db.create(("blocks", blockdata.height)).content(blockdata).await?;
+    let _: Option<BlockData> = db
+        .create(("blocks", blockdata.height))
+        .content(blockdata)
+        .await?;
     Ok(())
 }
 
@@ -107,6 +104,9 @@ pub async fn regproposal(db: &Surreal<Client>, proposal: &Proposal) -> Result<()
         "Registering proposal ID {} into DB ...",
         proposal.proposal_id
     );
-    let _: Option<Proposal> = db.create(("proposals", proposal.proposal_id)).content(proposal).await?;
+    let _: Option<Proposal> = db
+        .create(("proposals", proposal.proposal_id))
+        .content(proposal)
+        .await?;
     Ok(())
 }

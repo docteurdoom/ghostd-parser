@@ -1,5 +1,5 @@
 use crate::{
-    console::{BlockData, Proposal},
+    console::{BlockData, Proposal, Stakeaddress},
     engine::ProcessedBlocks,
 };
 use clap::ArgMatches;
@@ -32,13 +32,14 @@ pub async fn toprec(db: &Surreal<Client>) -> Result<Option<u64>, Box<dyn Error>>
     debug!("Database sanity check ...");
     trace!("Running a set of queries ...");
     let mut response = db
-        .query("math::max(SELECT VALUE height FROM blocks)")
-        .query("math::min(SELECT VALUE height FROM blocks)")
-        .query("math::sum(SELECT VALUE height FROM blocks)")
+        .query("let $heights = (SELECT VALUE height FROM blocks)")
+        .query("math::max($heights)")
+        .query("math::min($heights)")
+        .query("math::sum($heights)")
         .await?;
-    match response.take(0)? {
+    match response.take(1)? {
         Some(top_height) => {
-            let min_height = response.take::<Option<u64>>(1)?.unwrap();
+            let min_height = response.take::<Option<u64>>(2)?.unwrap();
             trace!("Lowest height: {}, Top height: {}", min_height, top_height);
             if min_height != 0 {
                 warn!(
@@ -47,7 +48,7 @@ pub async fn toprec(db: &Surreal<Client>) -> Result<Option<u64>, Box<dyn Error>>
                 );
             }
             let fold: u64 = (min_height..=top_height).fold(0, |acc, x| acc + x);
-            let dbfold: u64 = response.take::<Option<u64>>(2)?.unwrap();
+            let dbfold: u64 = response.take::<Option<u64>>(3)?.unwrap();
             if fold != dbfold {
                 error!(
                     "Database is insane! Rust fold: {}, SurrealDB fold: {}",
@@ -107,6 +108,24 @@ pub async fn regproposal(db: &Surreal<Client>, proposal: &Proposal) -> Result<()
     let _: Option<Proposal> = db
         .create(("proposals", proposal.proposal_id))
         .content(proposal)
+        .await?;
+    Ok(())
+}
+
+pub async fn getstakeaddresses(db: &Surreal<Client>) -> Result<Vec<Stakeaddress>, Box<dyn Error>> {
+    trace!("Querying validated stakeaddresses ...");
+    let stakeaddresses: Vec<Stakeaddress> = db.select("stakeaddresses").await?;
+    Ok(stakeaddresses)
+}
+
+pub async fn regstakeaddress(
+    db: &Surreal<Client>,
+    stakeaddr: &Stakeaddress,
+) -> Result<(), Box<dyn Error>> {
+    trace!("Recording new stakeaddress into DB ...");
+    let _: Option<Stakeaddress> = db
+        .create(("stakeaddresses", stakeaddr.raw.clone()))
+        .content(stakeaddr)
         .await?;
     Ok(())
 }

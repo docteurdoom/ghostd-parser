@@ -18,7 +18,7 @@ impl PrivatePool {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Pool {
     pub pubkey: String,
     pub url: Option<String>,

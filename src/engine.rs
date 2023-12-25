@@ -39,7 +39,7 @@ async fn scan(
     db: &Surreal<Client>,
     auth: &AuthToken,
 ) -> Result<(), Box<dyn Error>> {
-    let blockdata: BlockData = getblock(blockhash, &auth).await?;
+    let blockdata: BlockData = getblock(blockhash, db, &auth).await?;
     if let Ok(Some(proposal)) = getnewproposal(&blockdata, &proposal_ids, &auth).await {
         db::regproposal(&db, &proposal).await?;
         *proposal_ids = db::getproposalids(&db).await?;

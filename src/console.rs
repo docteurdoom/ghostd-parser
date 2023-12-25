@@ -1,11 +1,13 @@
 use crate::{
     console::Vout::Data,
+    db,
     pools::{Pool, POOLS},
     rpc::{call, AuthToken},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, error::Error};
+use surrealdb::{engine::remote::ws::Client, Surreal};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockData {
@@ -40,7 +42,11 @@ pub struct BlockData {
 }
 
 impl BlockData {
-    async fn validateaddress(&mut self, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
+    async fn determine_coldstaking(
+        &mut self,
+        db: &Surreal<Client>,
+        auth: &AuthToken,
+    ) -> Result<(), Box<dyn Error>> {
         let hasstakeaddress: Option<Vec<String>> = match self.tx[0].vout[1].clone() {
             Vout::Standard {
                 n: _,
@@ -55,24 +61,10 @@ impl BlockData {
             }
         };
         match hasstakeaddress {
-            Some(stakeaddress) => {
-                info!("Validating address");
-                let arg = format!("validateaddress {} true", &stakeaddress[0]);
-                let value = call(&arg, auth).await?;
-                let poolkey: String =
-                    serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
-                // Default is no pool.
-                self.coldstaking = Some(Pool {
-                    pubkey: poolkey.clone(),
-                    url: None,
-                    pool_is_active: None,
-                });
-                for known_pool in POOLS {
-                    if &poolkey == known_pool.pubkey {
-                        self.coldstaking = Some(known_pool.getpool());
-                        break;
-                    }
-                }
+            Some(unchecked_raw_stakeaddresses) => {
+                let coldstaking =
+                    check_stakeaddress_in_db(&unchecked_raw_stakeaddresses[0], db, auth).await?;
+                self.coldstaking = Some(coldstaking);
                 Ok(())
             }
             None => {
@@ -116,6 +108,68 @@ impl BlockData {
             }
         }
     }
+}
+
+async fn check_stakeaddress_in_db(
+    unchecked_raw_stakeaddress: &String,
+    db: &Surreal<Client>,
+    auth: &AuthToken,
+) -> Result<Pool, Box<dyn Error>> {
+    let known_stakeaddresses = db::getstakeaddresses(db).await?;
+    debug!("Checking for known stakeaddresses ...");
+    let mut coldstaking = Pool::default();
+    // Loop through known addresses and return if there is one
+    for known_stakeaddress in known_stakeaddresses.iter() {
+        if &known_stakeaddress.raw == unchecked_raw_stakeaddress {
+            trace!("Known stakeaddress found.");
+            coldstaking = known_stakeaddress.pool.clone();
+            return Ok(coldstaking);
+        }
+    }
+    trace!("No known stakeaddresses found.");
+    let coldstaking = validateaddress(unchecked_raw_stakeaddress, db, auth).await?;
+    Ok(coldstaking)
+}
+async fn validateaddress(
+    stakeaddress: &str,
+    db: &Surreal<Client>,
+    auth: &AuthToken,
+) -> Result<Pool, Box<dyn Error>> {
+    info!("Validating address ...");
+    let arg = format!("validateaddress {} true", stakeaddress);
+    let value = call(&arg, auth).await?;
+    let poolkey: String = serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
+    // Default is no pool.
+    let mut coldstaking = Pool {
+        pubkey: poolkey.clone(),
+        url: None,
+        pool_is_active: None,
+    };
+    for known_pool in POOLS {
+        if &poolkey == known_pool.pubkey {
+            trace!("Stakeaddress belongs to a known pool.");
+            coldstaking = known_pool.getpool();
+            let stakeaddr_for_db = Stakeaddress {
+                raw: stakeaddress.to_string(),
+                pool: coldstaking.clone(),
+            };
+            db::regstakeaddress(db, &stakeaddr_for_db).await?;
+            Ok(coldstaking)
+        }
+    }
+    trace!("Stakeaddress is of an unknown origin.");
+    let stakeaddr_for_db = Stakeaddress {
+        raw: stakeaddress.to_string(),
+        pool: coldstaking.clone(),
+    };
+    db::regstakeaddress(db, &stakeaddr_for_db).await?;
+    Ok(coldstaking)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Stakeaddress {
+    pub raw: String,
+    pub pool: Pool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -294,12 +348,13 @@ pub async fn getblockhash(height: u64, auth: &AuthToken) -> Result<String, Box<d
 
 pub async fn getblock(
     blockhash: impl Into<String>,
+    db: &Surreal<Client>,
     auth: &AuthToken,
 ) -> Result<BlockData, Box<dyn Error>> {
     let arg = format!("getblock {} 2 true", blockhash.into());
     let value = call(&arg, auth).await?;
     let mut blockdata: BlockData = serde_json::from_value(value)?;
-    blockdata.validateaddress(auth).await?;
+    blockdata.determine_coldstaking(db, auth).await?;
     blockdata.read_vote();
     Ok(blockdata)
 }

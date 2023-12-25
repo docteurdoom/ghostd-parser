@@ -116,12 +116,12 @@ async fn check_stakeaddress_in_db(
     auth: &AuthToken,
 ) -> Result<Pool, Box<dyn Error>> {
     let known_stakeaddresses = db::getstakeaddresses(db).await?;
-    debug!("Checking for known stakeaddresses ...");
+    trace!("Checking for known stakeaddresses ...");
     let mut coldstaking = Pool::default();
     // Loop through known addresses and return if there is one
     for known_stakeaddress in known_stakeaddresses.iter() {
         if &known_stakeaddress.raw == unchecked_raw_stakeaddress {
-            trace!("Known stakeaddress found.");
+            trace!("Known stakeaddress found. Skipping address validation.");
             coldstaking = known_stakeaddress.pool.clone();
             return Ok(coldstaking);
         }

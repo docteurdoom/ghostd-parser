@@ -154,7 +154,7 @@ async fn validateaddress(
                 pool: coldstaking.clone(),
             };
             db::regstakeaddress(db, &stakeaddr_for_db).await?;
-            Ok(coldstaking)
+            return Ok(coldstaking);
         }
     }
     trace!("Stakeaddress is of an unknown origin.");

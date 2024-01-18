@@ -69,7 +69,7 @@ struct Post<'r> {
     params: Value,
 }
 
-pub(crate) async fn call(args: &str, auth: &RPCURL) -> Result<Value, Box<dyn Error>> {
+pub(crate) async fn call(args: &str, rpcurl: &RPCURL) -> Result<Value, Box<dyn Error>> {
     let mut params = parametrize(args);
     let method = params[0].clone();
     params.remove(0);
@@ -81,7 +81,7 @@ pub(crate) async fn call(args: &str, auth: &RPCURL) -> Result<Value, Box<dyn Err
         params: Value::Array(params),
     };
     debug!("RPC: {} {} ...", &post.method, &post.params);
-    let response: Value = ureq::post(&auth.0)
+    let response: Value = ureq::post(&rpcurl.0)
         .set("Content-Type", "application/json")
         .send_json(serde_json::to_value(post)?)?
         .into_json()?;

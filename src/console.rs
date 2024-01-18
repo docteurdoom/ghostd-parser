@@ -45,7 +45,7 @@ impl BlockData {
     async fn determine_coldstaking(
         &mut self,
         db: &Surreal<Client>,
-        auth: &RPCURL,
+        rpcurl: &RPCURL,
     ) -> Result<(), Box<dyn Error>> {
         let hasstakeaddress: Option<Vec<String>> = match self.tx[0].vout[1].clone() {
             Vout::Standard {
@@ -63,7 +63,7 @@ impl BlockData {
         match hasstakeaddress {
             Some(unchecked_raw_stakeaddresses) => {
                 let coldstaking =
-                    check_stakeaddress_in_db(&unchecked_raw_stakeaddresses[0], db, auth).await?;
+                    check_stakeaddress_in_db(&unchecked_raw_stakeaddresses[0], db, rpcurl).await?;
                 self.coldstaking = Some(coldstaking);
                 Ok(())
             }
@@ -113,7 +113,7 @@ impl BlockData {
 async fn check_stakeaddress_in_db(
     unchecked_raw_stakeaddress: &String,
     db: &Surreal<Client>,
-    auth: &RPCURL,
+    rpcurl: &RPCURL,
 ) -> Result<Pool, Box<dyn Error>> {
     let known_stakeaddresses = db::getstakeaddresses(db).await?;
     trace!("Checking for known stakeaddresses ...");
@@ -127,17 +127,17 @@ async fn check_stakeaddress_in_db(
         }
     }
     trace!("No known stakeaddresses found.");
-    let coldstaking = validateaddress(unchecked_raw_stakeaddress, db, auth).await?;
+    let coldstaking = validateaddress(unchecked_raw_stakeaddress, db, rpcurl).await?;
     Ok(coldstaking)
 }
 async fn validateaddress(
     stakeaddress: &str,
     db: &Surreal<Client>,
-    auth: &RPCURL,
+    rpcurl: &RPCURL,
 ) -> Result<Pool, Box<dyn Error>> {
     info!("Validating address ...");
     let arg = format!("validateaddress {} true", stakeaddress);
-    let value = call(&arg, auth).await?;
+    let value = call(&arg, rpcurl).await?;
     let poolkey: String = serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
     // Default is no pool.
     let mut coldstaking = Pool {
@@ -281,17 +281,17 @@ pub struct Vote {
 }
 
 impl Vote {
-    pub async fn gen_proposal(&self, auth: &RPCURL) -> Result<Proposal, Box<dyn Error>> {
+    pub async fn gen_proposal(&self, rpcurl: &RPCURL) -> Result<Proposal, Box<dyn Error>> {
         Ok(Proposal {
             proposal_id: self.proposal_id,
-            stats: self.count_stats(auth).await?,
+            stats: self.count_stats(rpcurl).await?,
         })
     }
     async fn count_stats(
         &self,
-        auth: &RPCURL,
+        rpcurl: &RPCURL,
     ) -> Result<HashMap<String, (u64, f64)>, Box<dyn Error>> {
-        Ok(tallyvotes(*&self.proposal_id, auth).await?)
+        Ok(tallyvotes(*&self.proposal_id, rpcurl).await?)
     }
 }
 
@@ -303,10 +303,10 @@ pub struct Proposal {
 
 async fn tallyvotes(
     proposal_id: u64,
-    auth: &RPCURL,
+    rpcurl: &RPCURL,
 ) -> Result<HashMap<String, (u64, f64)>, Box<dyn Error>> {
     let arg = format!("tallyvotes {} 710800 {}", proposal_id, i32::MAX);
-    let context = call(&arg, auth).await?;
+    let context = call(&arg, rpcurl).await?;
     let rawmap: HashMap<String, Value> = serde_json::from_value(context)?;
     let mut hmap: HashMap<String, (u64, f64)> = rawmap
         .iter()
@@ -339,9 +339,9 @@ fn parse_tallyvotes_ratios(raw: String) -> (u64, f64) {
     return vote_args_tuple;
 }
 
-pub async fn getblockhash(height: u64, auth: &RPCURL) -> Result<String, Box<dyn Error>> {
+pub async fn getblockhash(height: u64, rpcurl: &RPCURL) -> Result<String, Box<dyn Error>> {
     let arg = format!("getblockhash {}", height);
-    let raw = call(&arg, auth).await?;
+    let raw = call(&arg, rpcurl).await?;
     let hash: String = serde_json::from_value(raw)?;
     Ok(hash)
 }
@@ -349,12 +349,12 @@ pub async fn getblockhash(height: u64, auth: &RPCURL) -> Result<String, Box<dyn 
 pub async fn getblock(
     blockhash: impl Into<String>,
     db: &Surreal<Client>,
-    auth: &RPCURL,
+    rpcurl: &RPCURL,
 ) -> Result<BlockData, Box<dyn Error>> {
     let arg = format!("getblock {} 2 true", blockhash.into());
-    let value = call(&arg, auth).await?;
+    let value = call(&arg, rpcurl).await?;
     let mut blockdata: BlockData = serde_json::from_value(value)?;
-    blockdata.determine_coldstaking(db, auth).await?;
+    blockdata.determine_coldstaking(db, rpcurl).await?;
     blockdata.read_vote();
     Ok(blockdata)
 }
@@ -362,14 +362,14 @@ pub async fn getblock(
 pub async fn getnewproposal(
     blockdata: &BlockData,
     proposal_ids: &Vec<u64>,
-    auth: &RPCURL,
+    rpcurl: &RPCURL,
 ) -> Result<Option<Proposal>, Box<dyn Error>> {
     if blockdata.height > 710800 {
         match blockdata.voting_info.clone() {
             Some(vote) => {
                 let existsyet = proposal_ids.iter().any(|&x| x == vote.proposal_id);
                 if !existsyet {
-                    let proposal = vote.gen_proposal(auth).await?;
+                    let proposal = vote.gen_proposal(rpcurl).await?;
                     Ok(Some(proposal))
                 } else {
                     Ok(None)

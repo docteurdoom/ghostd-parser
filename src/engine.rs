@@ -16,7 +16,7 @@ pub async fn run(args: &ArgMatches) {
         error!("Ghostd IP parsing error.");
         std::process::exit(1);
     }
-    let auth = RPCURL::default()
+    let rpcurl = RPCURL::default()
         .target(
             ipsplit[0],
             ipsplit[1].parse::<u16>().unwrap(),
@@ -25,11 +25,11 @@ pub async fn run(args: &ArgMatches) {
             &args.get_one::<String>("password").unwrap()
         );
     let db = db::init(args).await.unwrap();
-    if let Err(e) = catchup(&db, &auth).await {
+    if let Err(e) = catchup(&db, &rpcurl).await {
         error!("{}", e);
         std::process::exit(1);
     }
-    if let Err(e) = listen(&db, &auth).await {
+    if let Err(e) = listen(&db, &rpcurl).await {
         error!("{}", e);
         std::process::exit(1);
     }
@@ -39,10 +39,10 @@ async fn scan(
     blockhash: &String,
     proposal_ids: &mut Vec<u64>,
     db: &Surreal<Client>,
-    auth: &RPCURL,
+    rpcurl: &RPCURL,
 ) -> Result<(), Box<dyn Error>> {
-    let blockdata: BlockData = getblock(blockhash, db, &auth).await?;
-    if let Ok(Some(proposal)) = getnewproposal(&blockdata, &proposal_ids, &auth).await {
+    let blockdata: BlockData = getblock(blockhash, db, &rpcurl).await?;
+    if let Ok(Some(proposal)) = getnewproposal(&blockdata, &proposal_ids, &rpcurl).await {
         db::regproposal(&db, &proposal).await?;
         *proposal_ids = db::getproposalids(&db).await?;
     }
@@ -50,17 +50,17 @@ async fn scan(
     Ok(())
 }
 
-async fn catchup(db: &Surreal<Client>, auth: &RPCURL) -> Result<(), Box<dyn Error>> {
+async fn catchup(db: &Surreal<Client>, rpcurl: &RPCURL) -> Result<(), Box<dyn Error>> {
     let nextheight = match db::toprec(&db).await? {
         Some(thing) => thing + 1,
         None => 0,
     };
     let mut proposal_ids = db::getproposalids(&db).await?;
     for height in nextheight.. {
-        let blockhash_result = getblockhash(height, auth).await;
+        let blockhash_result = getblockhash(height, rpcurl).await;
         match blockhash_result {
             Ok(blockhash) => {
-                scan(&blockhash, &mut proposal_ids, &db, &auth).await?;
+                scan(&blockhash, &mut proposal_ids, &db, &rpcurl).await?;
             }
             Err(_) => {
                 info!("Caught up the blocks. Switching to listen mode ...");
@@ -89,7 +89,7 @@ impl ProcessedBlocks {
     }
 }
 
-async fn listen(db: &Surreal<Client>, auth: &RPCURL) -> Result<(), Box<dyn Error>> {
+async fn listen(db: &Surreal<Client>, rpcurl: &RPCURL) -> Result<(), Box<dyn Error>> {
     let mut proposal_ids = db::getproposalids(&db).await?;
     let mut processed_blocks = ProcessedBlocks::default();
     if let Some(blocks) = db::gettrackedzmq(&db).await? {
@@ -100,7 +100,7 @@ async fn listen(db: &Surreal<Client>, auth: &RPCURL) -> Result<(), Box<dyn Error
     while let Some(msg) = stream.next().await {
         let blockhash = gethash(msg);
         if !processed_blocks.contains(&blockhash) {
-            scan(&blockhash, &mut proposal_ids, &db, auth).await?;
+            scan(&blockhash, &mut proposal_ids, &db, rpcurl).await?;
             processed_blocks.inject(blockhash);
             db::regtrackedzmq(&db, &processed_blocks).await?;
         }

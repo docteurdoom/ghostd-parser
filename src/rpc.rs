@@ -4,33 +4,24 @@ use serde_json::Value;
 use std::error::Error;
 
 #[derive(Debug, Clone, Default)]
-pub struct AuthToken {
-    user: String,
-    password: String,
-    url: String,
-}
+pub struct RPCURL(String);
 
-impl AuthToken {
-    pub fn new() -> Self {
-        Self {
-            user: String::new(),
-            password: String::new(),
-            url: String::new(),
-        }
-    }
-    pub fn target(mut self, ip: &str, port: u16, walletname: &str) -> Self {
-        debug!("Generating auth ...");
+impl RPCURL {
+    pub fn target(mut self, ip: &str, port: u16, walletname: &str, user: &str, password: &str) -> Self {
+        trace!("Constructing RPC console URL ...");
         if walletname.len() == 0 {
-            self.url = format!("http://{}:{}/", ip, port);
+            if user != "" && password != "" {
+                self.0 = format!("http://{}:{}@{}:{}/", user, password, ip, port);
+            } else {
+                self.0 = format!("http://{}:{}/", ip, port);
+            }
         } else {
-            self.url = format!("http://{}:{}/wallet/{}", ip, port, walletname);
+            if user != "" && password != "" {
+                self.0 = format!("http://{}:{}@{}:{}/wallet/{}", user, password, ip, port, walletname);
+            } else {
+                self.0 = format!("http://{}:{}/wallet/{}", ip, port, walletname);
+            }
         }
-        return self;
-    }
-    pub fn credentials(mut self, user: impl Into<String>, password: impl Into<String>) -> Self {
-        trace!("Registering credentials ...");
-        self.user = user.into();
-        self.password = password.into();
         return self;
     }
 }
@@ -78,7 +69,7 @@ struct Post<'r> {
     params: Value,
 }
 
-pub(crate) async fn call(args: &str, auth: &AuthToken) -> Result<Value, Box<dyn Error>> {
+pub(crate) async fn call(args: &str, auth: &RPCURL) -> Result<Value, Box<dyn Error>> {
     let mut params = parametrize(args);
     let method = params[0].clone();
     params.remove(0);
@@ -90,21 +81,9 @@ pub(crate) async fn call(args: &str, auth: &AuthToken) -> Result<Value, Box<dyn 
         params: Value::Array(params),
     };
     debug!("RPC: {} {} ...", &post.method, &post.params);
-    let response = reqwest::Client::new()
-        .post(auth.url.clone())
-        .basic_auth(auth.user.clone(), Some(auth.password.clone()))
-        .json(&post)
-        .send()
-        .await;
-    match response {
-        Ok(context) => {
-            let rpcresponse: RPCResponse = context.json().await?;
-            let json = rpcresponse.unpack();
-            return Ok(json);
-        }
-        Err(err) => {
-            error!("{}", err);
-            std::process::exit(1);
-        }
-    }
+    let response: Value = ureq::post(&auth.0)
+        .set("Content-Type", "application/json")
+        .send_json(serde_json::to_value(post)?)?
+        .into_json()?;
+    return Ok(response["result"].clone());
 }

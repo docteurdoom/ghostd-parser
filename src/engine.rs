@@ -1,4 +1,4 @@
-use crate::{console::*, db, rpc::AuthToken};
+use crate::{console::*, db, rpc::RPCURL};
 use bitcoincore_zmq::{subscribe_single_async, Message, Message::HashBlock};
 use clap::ArgMatches;
 use futures_util::StreamExt;
@@ -16,11 +16,13 @@ pub async fn run(args: &ArgMatches) {
         error!("Ghostd IP parsing error.");
         std::process::exit(1);
     }
-    let auth = AuthToken::new()
-        .target(ipsplit[0], ipsplit[1].parse::<u16>().unwrap(), "")
-        .credentials(
-            args.get_one::<String>("user").unwrap(),
-            args.get_one::<String>("password").unwrap(),
+    let auth = RPCURL::default()
+        .target(
+            ipsplit[0],
+            ipsplit[1].parse::<u16>().unwrap(),
+            "",
+            &args.get_one::<String>("user").unwrap(),
+            &args.get_one::<String>("password").unwrap()
         );
     let db = db::init(args).await.unwrap();
     if let Err(e) = catchup(&db, &auth).await {
@@ -37,7 +39,7 @@ async fn scan(
     blockhash: &String,
     proposal_ids: &mut Vec<u64>,
     db: &Surreal<Client>,
-    auth: &AuthToken,
+    auth: &RPCURL,
 ) -> Result<(), Box<dyn Error>> {
     let blockdata: BlockData = getblock(blockhash, db, &auth).await?;
     if let Ok(Some(proposal)) = getnewproposal(&blockdata, &proposal_ids, &auth).await {
@@ -48,7 +50,7 @@ async fn scan(
     Ok(())
 }
 
-async fn catchup(db: &Surreal<Client>, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
+async fn catchup(db: &Surreal<Client>, auth: &RPCURL) -> Result<(), Box<dyn Error>> {
     let nextheight = match db::toprec(&db).await? {
         Some(thing) => thing + 1,
         None => 0,
@@ -87,7 +89,7 @@ impl ProcessedBlocks {
     }
 }
 
-async fn listen(db: &Surreal<Client>, auth: &AuthToken) -> Result<(), Box<dyn Error>> {
+async fn listen(db: &Surreal<Client>, auth: &RPCURL) -> Result<(), Box<dyn Error>> {
     let mut proposal_ids = db::getproposalids(&db).await?;
     let mut processed_blocks = ProcessedBlocks::default();
     if let Some(blocks) = db::gettrackedzmq(&db).await? {

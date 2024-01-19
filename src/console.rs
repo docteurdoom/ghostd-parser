@@ -137,7 +137,7 @@ async fn validateaddress(
 ) -> Result<Pool, Box<dyn Error>> {
     info!("Validating address ...");
     let arg = format!("validateaddress {} true", stakeaddress);
-    let value = call(&arg, rpcurl).await?;
+    let value = call(&arg, rpcurl)?;
     let poolkey: String = serde_json::from_value(value["stakeonly_address"].clone()).unwrap();
     // Default is no pool.
     let mut coldstaking = Pool {
@@ -306,7 +306,7 @@ async fn tallyvotes(
     rpcurl: &RPCURL,
 ) -> Result<HashMap<String, (u64, f64)>, Box<dyn Error>> {
     let arg = format!("tallyvotes {} 710800 {}", proposal_id, i32::MAX);
-    let context = call(&arg, rpcurl).await?;
+    let context = call(&arg, rpcurl)?;
     let rawmap: HashMap<String, Value> = serde_json::from_value(context)?;
     let mut hmap: HashMap<String, (u64, f64)> = rawmap
         .iter()
@@ -341,7 +341,7 @@ fn parse_tallyvotes_ratios(raw: String) -> (u64, f64) {
 
 pub async fn getblockhash(height: u64, rpcurl: &RPCURL) -> Result<String, Box<dyn Error>> {
     let arg = format!("getblockhash {}", height);
-    let raw = call(&arg, rpcurl).await?;
+    let raw = call(&arg, rpcurl)?;
     let hash: String = serde_json::from_value(raw)?;
     Ok(hash)
 }
@@ -352,7 +352,7 @@ pub async fn getblock(
     rpcurl: &RPCURL,
 ) -> Result<BlockData, Box<dyn Error>> {
     let arg = format!("getblock {} 2 true", blockhash.into());
-    let value = call(&arg, rpcurl).await?;
+    let value = call(&arg, rpcurl)?;
     let mut blockdata: BlockData = serde_json::from_value(value)?;
     blockdata.determine_coldstaking(db, rpcurl).await?;
     blockdata.read_vote();

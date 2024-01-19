@@ -7,7 +7,14 @@ use std::error::Error;
 pub struct RPCURL(String);
 
 impl RPCURL {
-    pub fn target(mut self, ip: &str, port: u16, walletname: &str, user: &str, password: &str) -> Self {
+    pub fn target(
+        mut self,
+        ip: &str,
+        port: u16,
+        walletname: &str,
+        user: &str,
+        password: &str,
+    ) -> Self {
         trace!("Constructing RPC console URL ...");
         if walletname.len() == 0 {
             if user != "" && password != "" {
@@ -17,7 +24,10 @@ impl RPCURL {
             }
         } else {
             if user != "" && password != "" {
-                self.0 = format!("http://{}:{}@{}:{}/wallet/{}", user, password, ip, port, walletname);
+                self.0 = format!(
+                    "http://{}:{}@{}:{}/wallet/{}",
+                    user, password, ip, port, walletname
+                );
             } else {
                 self.0 = format!("http://{}:{}/wallet/{}", ip, port, walletname);
             }
@@ -69,7 +79,7 @@ struct Post<'r> {
     params: Value,
 }
 
-pub(crate) async fn call(args: &str, rpcurl: &RPCURL) -> Result<Value, Box<dyn Error>> {
+pub(crate) fn call(args: &str, rpcurl: &RPCURL) -> Result<Value, Box<dyn Error>> {
     let mut params = parametrize(args);
     let method = params[0].clone();
     params.remove(0);

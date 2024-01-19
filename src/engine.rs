@@ -16,14 +16,13 @@ pub async fn run(args: &ArgMatches) {
         error!("Ghostd IP parsing error.");
         std::process::exit(1);
     }
-    let rpcurl = RPCURL::default()
-        .target(
-            ipsplit[0],
-            ipsplit[1].parse::<u16>().unwrap(),
-            "",
-            &args.get_one::<String>("user").unwrap(),
-            &args.get_one::<String>("password").unwrap()
-        );
+    let rpcurl = RPCURL::default().target(
+        ipsplit[0],
+        ipsplit[1].parse::<u16>().unwrap(),
+        "",
+        &args.get_one::<String>("user").unwrap(),
+        &args.get_one::<String>("password").unwrap(),
+    );
     let db = db::init(args).await.unwrap();
     if let Err(e) = catchup(&db, &rpcurl).await {
         error!("{}", e);
